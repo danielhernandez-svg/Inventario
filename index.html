@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Inventario Móvil</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;display:flex;flex-direction:column}
+header{background:#1a1d2e;border-bottom:2px solid #6366f1;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+header h1{font-size:.9rem;font-weight:700;color:#a5b4fc}
+#cronM{font-size:.85rem;font-weight:700;color:#fbbf24;font-family:monospace;margin-left:auto}
+nav{display:flex;background:#0f1117;border-bottom:1px solid #1e2235;flex-shrink:0}
+.tab{flex:1;padding:9px 4px;text-align:center;cursor:pointer;font-size:.72rem;color:#64748b;border-bottom:2px solid transparent}
+.tab.on{color:#a5b4fc;border-bottom-color:#6366f1;background:#1a1d2e}
+#content{flex:1;overflow-y:auto;overflow-x:hidden}
+section{display:none;padding:12px}
+section.on{display:block}
+.card{background:#1a1d2e;border:1px solid #2a2d45;border-radius:10px;padding:12px;margin-bottom:10px}
+.card h3{font-size:.72rem;color:#a5b4fc;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.drop{border:2px dashed #3a3d55;border-radius:8px;padding:16px 10px;text-align:center;cursor:pointer;position:relative;transition:.2s}
+.drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop .ico{font-size:1.6rem;display:block;margin-bottom:4px}
+.drop p{font-size:.72rem;color:#475569}
+.drop.ok{border-color:#22c55e;background:#0a1f12}.drop.ok p{color:#4ade80}
+.drop.er{border-color:#dc2626;background:#1f0a0a}.drop.er p{color:#f87171}
+.msg{font-size:.72rem;padding:6px 9px;border-radius:6px;margin-top:6px;display:none}
+.msg.on{display:block}
+.msg.ok{background:#0a1f12;border:1px solid #16a34a;color:#4ade80}
+.msg.er{background:#1f0a0a;border:1px solid #dc2626;color:#f87171}
+.msg.info{background:#1a1d2e;border:1px solid #6366f1;color:#a5b4fc}
+.btn{padding:10px 16px;border-radius:8px;border:none;cursor:pointer;font-size:.83rem;font-weight:600;width:100%;margin-bottom:8px}
+.btn:disabled{opacity:.4}
+.pri{background:#6366f1;color:#fff}
+.suc{background:#16a34a;color:#fff}
+.dan{background:#dc2626;color:#fff}
+.out{background:transparent;color:#a5b4fc;border:1px solid #6366f1}
+select{width:100%;background:#0f1117;border:1px solid #2a2d45;border-radius:8px;padding:10px;color:#e2e8f0;font-size:.88rem;outline:none;margin-bottom:8px}
+/* CAMARA */
+#camWrap{position:relative;width:100%;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-bottom:8px}
+#camVideo{width:100%;height:100%;object-fit:cover;display:block}
+#scanLine{position:absolute;left:5%;right:5%;height:3px;background:linear-gradient(90deg,transparent,#22c55e,#6366f1,#22c55e,transparent);top:50%;box-shadow:0 0 10px #22c55e;animation:scanAnim 2s ease-in-out infinite;display:none}
+#scanLine.active{display:block}
+@keyframes scanAnim{0%{top:15%}50%{top:85%}100%{top:15%}}
+#camMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,17,23,.85)}
+#camMsg p{color:#94a3b8;font-size:.82rem;text-align:center;padding:16px;line-height:1.6}
+#fbM{border-radius:8px;padding:12px;text-align:center;font-size:.85rem;font-weight:700;margin-bottom:8px;min-height:50px;display:flex;align-items:center;justify-content:center}
+.f-idle{background:#1a1d2e;color:#475569;border:1px solid #2a2d45}
+.f-ok{background:#0a1f12;color:#4ade80;border:1px solid #16a34a}
+.f-ov{background:#141f0a;color:#bef264;border:1px solid #65a30d}
+.f-uk{background:#1a1500;color:#fbbf24;border:1px solid #d97706}
+.f-er{background:#1f0a0a;color:#f87171;border:1px solid #dc2626}
+.f-done{background:#1a0d2e;color:#c4b5fd;border:2px solid #6366f1}
+.stats4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.st{background:#1a1d2e;border:1px solid #2a2d45;border-radius:8px;padding:8px 4px;text-align:center}
+.st .v{font-size:1.2rem;font-weight:800}
+.st .l{font-size:.6rem;color:#64748b;text-transform:uppercase;margin-top:2px}
+.c-ok .v{color:#4ade80}.c-fa .v{color:#f87171}.c-so .v{color:#fbbf24}.c-uk .v{color:#94a3b8}
+.prog-wrap{margin-bottom:8px}
+.prog-labels{display:flex;justify-content:space-between;font-size:.68rem;color:#64748b;margin-bottom:3px}
+.prog-track{background:#1e2235;border-radius:6px;height:8px;overflow:hidden}
+.prog-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,#6366f1,#22c55e);transition:width .4s}
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid #2a2d45;max-height:260px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:.7rem;min-width:440px}
+th{background:#1e2235;color:#a5b4fc;padding:7px 8px;text-align:left;white-space:nowrap;position:sticky;top:0;z-index:1}
+td{padding:6px 8px;border-bottom:1px solid #1e2235;white-space:nowrap}
+tr:last-child td{border:none}
+tr:active td{background:#1e2235}
+.bk{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.65rem;font-weight:700}
+.b-ok{background:#0a1f12;color:#4ade80}
+.b-fa{background:#1f0a0a;color:#f87171}
+.b-so{background:#141f0a;color:#bef264}
+.b-pe{background:#1a1500;color:#fbbf24}
+.b-uk{background:#1c1040;color:#c4b5fd}
+.dn{color:#f87171;font-weight:700}.dp{color:#bef264;font-weight:700}
+.empty{text-align:center;padding:20px;color:#475569}
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:999;align-items:flex-end;justify-content:center}
+#modal.show{display:flex}
+#modalBox{background:#1a1d2e;border:2px solid #6366f1;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:480px}
+#modalBox h3{color:#a5b4fc;font-size:.9rem;margin-bottom:10px}
+#modalDesc{font-size:.78rem;color:#94a3b8;margin-bottom:12px;line-height:1.5}
+#modalInput{width:100%;background:#0f1117;border:2px solid #6366f1;border-radius:8px;padding:12px;color:#fff;font-size:1.4rem;text-align:center;outline:none;margin-bottom:12px}
+.modal-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#stopCamBtn{background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px;font-size:.76rem;font-weight:600;width:100%;margin-bottom:8px;cursor:pointer;display:none}
+</style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:1.2rem">📦</span>
+  <h1>Inventario Móvil v4</h1>
+  <span id="cronM">00:00:00</span>
+</header>
+<nav>
+  <div class="tab on" id="t0" onclick="goTab(0)">⚙️ Config</div>
+  <div class="tab"    id="t1" onclick="goTab(1)">📷 Escáner</div>
+  <div class="tab"    id="t2" onclick="goTab(2)">📊 Reporte</div>
+</nav>
+
+<div id="content">
+
+<!-- SETUP -->
+<section class="on" id="s0">
+  <div class="card">
+    <h3>Sucursal</h3>
+    <select id="selSuc" onchange="onSuc()">
+      <option value="">-- Elige --</option>
+      <option>T-332 CD. Victoria</option>
+      <option>T-333 Reynosa</option>
+      <option>T-334 MTY Lincoln</option>
+      <option>T-335 MTY Universidad</option>
+      <option>T-336 Nuevo Laredo</option>
+      <option>T-337 Matamoros</option>
+      <option>T-373 Guadalupe</option>
+    </select>
+    <button class="btn pri" id="btnGo" onclick="iniciar()" disabled>▶ Iniciar y Activar Cámara</button>
+    <div class="msg" id="msgGo"></div>
+  </div>
+  <div class="card">
+    <h3>1. Portafolio base</h3>
+    <div class="drop" id="dP">
+      <input type="file" accept=".xlsx,.xls" onchange="cargar(this,'P')">
+      <span class="ico">📋</span>
+      <p id="pP">Toca para seleccionar archivo<br><small>CODIGO_BARRA · MOD · COLOR · TALLA</small></p>
+    </div>
+    <div class="msg" id="mP"></div>
+  </div>
+  <div class="card">
+    <h3>2. Existencia por sucursal</h3>
+    <div class="drop" id="dE">
+      <input type="file" accept=".xlsx,.xls" onchange="cargar(this,'E')">
+      <span class="ico">🏪</span>
+      <p id="pE">Toca para seleccionar archivo<br><small>MODELO · COLOR · TALLA · EXISTENCIA</small></p>
+    </div>
+    <div class="msg" id="mE"></div>
+  </div>
+  <div class="card">
+    <h3>Sonidos</h3>
+    <p style="font-size:.75rem;color:#94a3b8;line-height:1.8">
+      🔊 <b style="color:#4ade80">Bip corto</b> = escaneado OK<br>
+      🔊 <b style="color:#fbbf24">Triple pulso</b> = sobrante detectado<br>
+      🔊 <b style="color:#c4b5fd">Fanfarria</b> = inventario finalizado
+    </p>
+  </div>
+</section>
+
+<!-- SCANNER -->
+<section id="s1">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:.75rem;color:#94a3b8">
+    <span>Sucursal: <b id="sBranchM" style="color:#a5b4fc">—</b></span>
+    <span>Sistema: <b id="sTotalM" style="color:#e2e8f0">0</b> claves</span>
+  </div>
+
+  <div id="camWrap">
+    <video id="camVideo" playsinline autoplay muted></video>
+    <div id="scanLine"></div>
+    <div id="camMsg"><p id="camMsgTxt">La cámara se activará<br>al iniciar el inventario</p></div>
+  </div>
+
+  <button id="stopCamBtn" onclick="stopCam()">⏹ Detener Cámara</button>
+
+  <div id="fbM" class="f-idle">Listo para escanear</div>
+
+  <div class="stats4">
+    <div class="st c-ok"><div class="v" id="nOKm">0</div><div class="l">✓ OK</div></div>
+    <div class="st c-fa"><div class="v" id="nFAm">0</div><div class="l">↓ Falt.</div></div>
+    <div class="st c-so"><div class="v" id="nSOm">0</div><div class="l">↑ Sobr.</div></div>
+    <div class="st c-uk"><div class="v" id="nUKm">0</div><div class="l">? Desc.</div></div>
+  </div>
+
+  <div class="prog-wrap">
+    <div class="prog-labels">
+      <span>Progreso</span>
+      <span id="progTxtM">0 / 0 — 0%</span>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="progFillM" style="width:0%"></div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+    <button class="btn suc" style="margin:0" onclick="genReporte()">📊 Reporte</button>
+    <button class="btn out" style="margin:0" onclick="exportXlsx()">⬇ Excel</button>
+  </div>
+  <button class="btn dan" onclick="reiniciar()">🔄 Reiniciar</button>
+
+  <div style="font-size:.7rem;color:#64748b;margin:8px 0 4px">📋 Detalle — toca fila para editar físico</div>
+  <input id="fInvM" type="text" placeholder="Buscar modelo / color / talla..." oninput="renderInv()"
+    style="width:100%;background:#0f1117;border:1px solid #2a2d45;border-radius:7px;padding:8px 10px;color:#e2e8f0;font-size:.8rem;outline:none;margin-bottom:6px">
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr><th>Estado</th><th>Modelo</th><th>Color</th><th>Talla</th><th>Sist.</th><th>Fís.</th><th>Pend.</th><th>Dif.</th></tr>
+      </thead>
+      <tbody id="invBodyM">
+        <tr><td colspan="8" class="empty">Inicia el inventario</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- REPORTE -->
+<section id="s2">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+    <select id="fStM" onchange="renderRep()" style="margin:0">
+      <option value="">Todos</option>
+      <option value="FALTANTE">Faltantes</option>
+      <option value="SOBRANTE">Sobrantes</option>
+      <option value="OK">OK</option>
+      <option value="DESCONOCIDO">Desconocidos</option>
+    </select>
+    <button class="btn suc" style="margin:0;padding:10px" onclick="exportXlsx()">⬇ Excel</button>
+  </div>
+  <input id="fQM" type="text" placeholder="Buscar modelo/talla..." oninput="renderRep()"
+    style="width:100%;background:#0f1117;border:1px solid #2a2d45;border-radius:7px;padding:8px 10px;color:#e2e8f0;font-size:.8rem;outline:none;margin-bottom:6px">
+  <div style="font-size:.7rem;color:#64748b;margin-bottom:6px" id="rCntM"></div>
+  <div class="tbl-wrap" style="max-height:calc(100vh - 260px)">
+    <table>
+      <thead>
+        <tr><th>Estado</th><th>Modelo</th><th>Color</th><th>Talla</th><th>Temp.</th><th>Cat.</th><th>Sist.</th><th>Fís.</th><th>Dif.</th></tr>
+      </thead>
+      <tbody id="rBodyM">
+        <tr><td colspan="9" class="empty">Genera el reporte desde Escáner</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</div>
+
+<!-- MODAL -->
+<div id="modal">
+  <div id="modalBox">
+    <h3>✏️ Editar físico</h3>
+    <div id="modalDesc"></div>
+    <input id="modalInput" type="number" min="0" inputmode="numeric" placeholder="Cantidad...">
+    <div class="modal-btns">
+      <button class="btn out" onclick="closeModal()">Cancelar</button>
+      <button class="btn pri" onclick="confirmModal()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════
+// AUDIO
+// ════════════════════════════════
+var AC = null;
+function getAC() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, start, dur, type, vol, ac) {
+  var o = ac.createOscillator(), g = ac.createGain();
+  o.connect(g); g.connect(ac.destination);
+  o.type = type || 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol || 0.28, ac.currentTime + start);
+  g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + start + dur);
+  o.start(ac.currentTime + start);
+  o.stop(ac.currentTime + start + dur + 0.01);
+}
+function soundOK()       { try { var a=getAC(); tone(880,0,.12,'sine',.3,a); } catch(e){} }
+function soundSobrante() { try { var a=getAC(); tone(1400,0,.08,'square',.18,a); tone(1100,.12,.08,'square',.18,a); tone(800,.24,.12,'square',.22,a); } catch(e){} }
+function soundComplete() {
+  try {
+    var a=getAC();
+    [523,659,784,1047,1319].forEach(function(f,i){ tone(f,i*.18,.22,'sine',.3,a); });
+    setTimeout(function(){ try{ var a2=getAC(); tone(523,0,.6,'triangle',.15,a2); tone(659,0,.6,'triangle',.12,a2); tone(1047,0,.6,'triangle',.12,a2); }catch(e){} }, 950);
+  } catch(e) {}
+}
+function soundError() { try { var a=getAC(); tone(180,0,.28,'sawtooth',.22,a); } catch(e){} }
+
+// ════════════════════════════════
+// CRONÓMETRO
+// ════════════════════════════════
+var cronStart=null, cronTimer=null;
+function cronPlay() {
+  cronStart = Date.now();
+  cronTimer = setInterval(function(){
+    var ms=Date.now()-cronStart, h=Math.floor(ms/3600000), m=Math.floor(ms%3600000/60000), s=Math.floor(ms%60000/1000);
+    document.getElementById('cronM').textContent = pad(h)+':'+pad(m)+':'+pad(s);
+  }, 1000);
+}
+function cronStop() { clearInterval(cronTimer); }
+function pad(n) { return n<10?'0'+n:String(n); }
+
+// ════════════════════════════════
+// ESTADO
+// ════════════════════════════════
+var porto={}, sist={}, fis={}, desc={}, repRows=[], going=false, completeDone=false, modalKey=null;
+var stream=null, scanning=false, lastScan='', lastScanTime=0, rafId=null;
+var canvas=document.createElement('canvas'), ctx=canvas.getContext('2d');
+
+// ════════════════════════════════
+// UTILS
+// ════════════════════════════════
+function ns(v) {
+  if (v===null||v===undefined) return '';
+  var s=String(v).trim();
+  if (/[eE]/.test(s)) { try { s=parseFloat(s).toFixed(0); } catch(e){} }
+  s=s.replace(/\.0+$/,'');
+  if (/^\d+$/.test(s)&&s.length<13) s=s.padStart(13,'0');
+  return s;
+}
+function nu(v) { return String(v===null||v===undefined?'':v).trim().toUpperCase(); }
+function nt(v) {
+  if (v===null||v===undefined) return '';
+  var s=String(v).trim();
+  if (s===''||s.toUpperCase()==='NAN') return '';
+  if (/[eE]/.test(s)) { try { s=parseFloat(s).toFixed(0); } catch(e){} }
+  return s.replace(/\.0+$/,'').toUpperCase();
+}
+function mk(mod,col,tal) { return nu(mod)+'|'+nu(col)+'|'+nt(tal); }
+function fc(cols,kws) {
+  var up=cols.map(function(c){ return c.replace(/[^A-Z0-9]/gi,'').toUpperCase(); });
+  var kwu=kws.map(function(k){ return k.replace(/[^A-Z0-9]/gi,'').toUpperCase(); });
+  var i=up.findIndex(function(c){ return kwu.indexOf(c)>=0; });
+  return i>=0?cols[i]:null;
+}
+
+// ════════════════════════════════
+// TABS
+// ════════════════════════════════
+function goTab(n) {
+  [0,1,2].forEach(function(i){
+    document.getElementById('t'+i).classList.toggle('on',i===n);
+    document.getElementById('s'+i).classList.toggle('on',i===n);
+  });
+  if (n===2) renderRep();
+}
+
+// ════════════════════════════════
+// UI
+// ════════════════════════════════
+function setMsg(id,txt,type) { var el=document.getElementById(id); if(!el)return; el.textContent=txt; el.className='msg on '+type; }
+function setDrop(id,cls,txt) { var d=document.getElementById(id); if(d) d.className='drop '+cls; var p=document.getElementById(id==='dP'?'pP':'pE'); if(p) p.textContent=txt; }
+function setFbM(cls,txt) { var el=document.getElementById('fbM'); el.className=cls; el.textContent=txt; }
+function checkReady() {
+  var ok=!!document.getElementById('selSuc').value&&Object.keys(porto).length>0&&Object.keys(sist).length>0;
+  document.getElementById('btnGo').disabled=!ok;
+}
+function onSuc() { document.getElementById('sBranchM').textContent=document.getElementById('selSuc').value||'—'; checkReady(); }
+
+// ════════════════════════════════
+// ARCHIVOS
+// ════════════════════════════════
+function cargar(inp,tipo) {
+  var f=inp.files[0]; if(!f)return;
+  var r=new FileReader();
+  r.onerror=function(){ setMsg('m'+tipo,'Error al leer','er'); };
+  r.onload=function(e){
+    try {
+      var wb=XLSX.read(e.target.result,{type:'array'});
+      var data=[],hoja='';
+      for(var i=0;i<wb.SheetNames.length;i++){
+        var nm=wb.SheetNames[i];
+        var tmp=XLSX.utils.sheet_to_json(wb.Sheets[nm],{defval:'',raw:true});
+        if(tmp.length){ data=tmp; hoja=nm; break; }
+      }
+      if(!data.length){ setMsg('m'+tipo,'Archivo vacío','er'); return; }
+      setMsg('m'+tipo,'Hoja: "'+hoja+'" — '+data.length+' filas','info');
+      if(tipo==='P') procPortafolio(data,f.name);
+      else            procSistema(data,f.name);
+    } catch(ex){ setMsg('m'+tipo,'Error: '+ex.message,'er'); }
+  };
+  r.readAsArrayBuffer(f);
+}
+
+function procPortafolio(data,fname) {
+  porto={};
+  var cols=Object.keys(data[0]);
+  var cCB=fc(cols,['CODIGOBARRA','CODIGOBARRAS','CODIGO','CB','SKU','BARCODE','CBNUM','CODBAR']);
+  var cMod=fc(cols,['MOD','MODELO','MODEL']);
+  var cCol=fc(cols,['COLOR','COLOUR','COL']);
+  var cTal=fc(cols,['TALLA','SIZE','TALLASIZE']);
+  var cTmp=fc(cols,['TEMPORADA','TEMP','SEASON']);
+  var cCat=fc(cols,['CATALOGO','CAT','CATALOG']);
+  if(!cMod){ setMsg('mP','No se encontró columna MOD/MODELO','er'); setDrop('dP','er','✗ Error'); return; }
+  var cnt=0;
+  data.forEach(function(r){
+    var mod=nu(r[cMod]); if(!mod)return;
+    var col=nu(r[cCol]||''),tal=nt(r[cTal]||'');
+    var tmp=String(r[cTmp]||'').trim(),cat=String(r[cCat]||'').trim();
+    var k=mk(mod,col,tal);
+    var entry={key:k,mod:mod,color:col,talla:tal,temporada:tmp,catalogo:cat};
+    porto['k:'+k]=entry;
+    if(cCB){ var sku=ns(r[cCB]); if(sku){ porto[sku]=entry; cnt++; } }
+  });
+  setDrop('dP','ok','✓ '+fname+' — '+cnt+' SKUs');
+  setMsg('mP',cnt+' códigos cargados','ok');
+  checkReady();
+}
+
+function procSistema(data,fname) {
+  sist={};
+  var cols=Object.keys(data[0]);
+  var cMod=fc(cols,['MODELO','MOD','MODEL','MODULO']);
+  var cCol=fc(cols,['COLOR','COLOUR','COL']);
+  var cTal=fc(cols,['TALLA','SIZE','TALLASIZE']);
+  var cExis=fc(cols,['EXISTENCIA','EXIST','QTY','CANTIDAD','STOCK','EXISTENC']);
+  var cTmp=fc(cols,['TEMPORADA','TEMP','SEASON']);
+  var cCat=fc(cols,['CATALOGO','CATÁLOGO','CAT','CATALOG']);
+  if(!cMod){ setMsg('mE','No se encontró MODELO','er'); setDrop('dE','er','✗ Error'); return; }
+  if(!cExis){ setMsg('mE','No se encontró EXISTENCIA','er'); setDrop('dE','er','✗ Error'); return; }
+  var cnt=0;
+  data.forEach(function(r){
+    var mod=nu(r[cMod]); if(!mod)return;
+    var col=nu(r[cCol]||''),tal=nt(r[cTal]||'');
+    var qty=parseFloat(String(r[cExis]||'0').replace(/[^\d.-]/g,''))||0;
+    var tmp=String(r[cTmp]||'').trim(),cat=String(r[cCat]||'').trim();
+    var k=mk(mod,col,tal);
+    sist[k]={existencia:qty,mod:mod,color:col,talla:tal,temporada:tmp,catalogo:cat};
+    cnt++;
+  });
+  setDrop('dE','ok','✓ '+fname+' — '+cnt+' registros');
+  setMsg('mE',cnt+' claves cargadas','ok');
+  checkReady();
+}
+
+// ════════════════════════════════
+// INICIAR — abre cámara directo
+// ════════════════════════════════
+function iniciar() {
+  if(!document.getElementById('selSuc').value){ alert('Selecciona una sucursal'); return; }
+  if(!Object.keys(porto).length){ alert('Carga el portafolio primero'); return; }
+  if(!Object.keys(sist).length){ alert('Carga la existencia primero'); return; }
+  fis={}; desc={}; repRows=[]; going=true; completeDone=false;
+  document.getElementById('sTotalM').textContent=Object.keys(sist).length;
+  document.getElementById('cronM').textContent='00:00:00';
+  cronStop(); cronPlay();
+  updStats(); renderInv();
+  goTab(1);
+  // Activar cámara automáticamente
+  startCam();
+}
+
+// ════════════════════════════════
+// CÁMARA — API nativa getUserMedia
+// + BarcodeDetector nativo del navegador
+// ════════════════════════════════
+function startCam() {
+  if (scanning) return;
+  var constraints = {
+    video: {
+      facingMode: { ideal: 'environment' }, // cámara trasera
+      width:  { ideal: 1280 },
+      height: { ideal: 720 }
+    }
+  };
+  navigator.mediaDevices.getUserMedia(constraints)
+    .then(function(s) {
+      stream = s;
+      var video = document.getElementById('camVideo');
+      video.srcObject = s;
+      video.play();
+      video.onloadedmetadata = function() {
+        canvas.width  = video.videoWidth  || 640;
+        canvas.height = video.videoHeight || 480;
+        document.getElementById('camMsg').style.display = 'none';
+        document.getElementById('scanLine').classList.add('active');
+        document.getElementById('stopCamBtn').style.display = 'block';
+        scanning = true;
+        tickScan();
+      };
+    })
+    .catch(function(err) {
+      var txt = '⚠ No se pudo acceder a la cámara';
+      if (err.name==='NotAllowedError')  txt = '⚠ Permiso de cámara denegado.\nVe a Ajustes del navegador y permite la cámara.';
+      if (err.name==='NotFoundError')    txt = '⚠ No se encontró cámara en este dispositivo.';
+      if (err.name==='NotSupportedError')txt = '⚠ Este navegador no soporta acceso a cámara.\nUsa Chrome o Safari actualizado.';
+      document.getElementById('camMsgTxt').textContent = txt;
+      document.getElementById('camMsg').style.display = 'flex';
+      setFbM('f-er', txt);
+    });
+}
+
+function stopCam() {
+  scanning = false;
+  if (rafId) { cancelAnimationFrame(rafId); rafId=null; }
+  if (stream) { stream.getTracks().forEach(function(t){ t.stop(); }); stream=null; }
+  document.getElementById('camVideo').srcObject = null;
+  document.getElementById('scanLine').classList.remove('active');
+  document.getElementById('stopCamBtn').style.display = 'none';
+  document.getElementById('camMsgTxt').textContent = 'Cámara detenida. Presiona Reiniciar para volver a escanear.';
+  document.getElementById('camMsg').style.display = 'flex';
+}
+
+// ── Detección de código con BarcodeDetector (Chrome/Android nativo) ──
+var detector = null;
+if (window.BarcodeDetector) {
+  detector = new BarcodeDetector({
+    formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code']
+  });
+}
+
+var lastTickTime = 0;
+function tickScan() {
+  if (!scanning) return;
+  rafId = requestAnimationFrame(function(ts) {
+    // throttle: procesar cada 300ms para no sobrecargar
+    if (ts - lastTickTime > 300) {
+      lastTickTime = ts;
+      var video = document.getElementById('camVideo');
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        if (detector) {
+          // BarcodeDetector nativo — más rápido y preciso
+          detector.detect(video).then(function(barcodes) {
+            if (barcodes.length > 0) {
+              var txt = barcodes[0].rawValue;
+              var now = Date.now();
+              if (txt !== lastScan || now - lastScanTime > 1500) {
+                lastScan = txt; lastScanTime = now;
+                doScan(txt);
+              }
+            }
+          }).catch(function(){});
+        } else {
+          // Fallback: ZXing si está disponible
+          if (window.ZXing) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            try {
+              var hints = new Map();
+              hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+              var reader = new ZXing.MultiFormatReader();
+              reader.setHints(hints);
+              var lum = new ZXing.RGBLuminanceSource(imageData.data, canvas.width, canvas.height);
+              var bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
+              var result = reader.decode(bmp);
+              if (result) {
+                var txt2 = result.getText();
+                var now2 = Date.now();
+                if (txt2 !== lastScan || now2 - lastScanTime > 1500) {
+                  lastScan = txt2; lastScanTime = now2;
+                  doScan(txt2);
+                }
+              }
+            } catch(e) {}
+          }
+        }
+      }
+    }
+    tickScan();
+  });
+}
+
+// ════════════════════════════════
+// SCAN LOGIC
+// ════════════════════════════════
+function doScan(raw) {
+  if (!going) { setFbM('f-er','⚠ Inicia el inventario primero'); return; }
+  var sku   = ns(raw);
+  var entry = porto[sku] || porto['k:'+sku] || null;
+  if (entry) {
+    var k  = entry.key;
+    fis[k] = (fis[k]||0)+1;
+    var sq = sist[k] ? sist[k].existencia : 0;
+    var fq = fis[k], d = fq-sq;
+    if (!sist[k]) {
+      var pts=k.split('|'), pref=pts[0]+'|'+pts[1]+'|';
+      var sim=Object.keys(sist).find(function(sk){ return sk.indexOf(pref)===0; });
+      if (sim) {
+        setFbM('f-uk','⚠ '+entry.mod+' '+entry.color+' — Talla portafolio:"'+pts[2]+'" | Sistema:"'+sim.split('|')[2]+'"');
+        soundError(); updStats(); renderInv(); checkComplete(); return;
+      }
+    }
+    if (d>0) { setFbM('f-ov','↑ SOBRANTE: '+entry.mod+' '+entry.color+' T'+entry.talla+' F:'+fq+' S:'+sq); soundSobrante(); }
+    else      { setFbM('f-ok','✓ '+entry.mod+' '+entry.color+' T'+entry.talla+' F:'+fq+' S:'+sq); soundOK(); }
+  } else {
+    desc[sku]=(desc[sku]||0)+1;
+    setFbM('f-uk','? DESCONOCIDO: '+sku);
+    soundError();
+  }
+  updStats(); renderInv(); checkComplete();
+}
+
+// ════════════════════════════════
+// STATS + PROGRESO
+// ════════════════════════════════
+function updStats() {
+  var ok=0,fa=0,so=0;
+  Object.keys(sist).forEach(function(k){ var s=sist[k].existencia||0,f=fis[k]||0,d=f-s; if(f===0)return; if(d===0)ok++; else if(d<0)fa++; else so++; });
+  Object.keys(fis).forEach(function(k){ if(!sist[k])so++; });
+  document.getElementById('nOKm').textContent=ok;
+  document.getElementById('nFAm').textContent=fa;
+  document.getElementById('nSOm').textContent=so;
+  document.getElementById('nUKm').textContent=Object.keys(desc).length;
+  var keys=Object.keys(sist),total=keys.length;
+  var esc=keys.filter(function(k){ return(fis[k]||0)>0; }).length;
+  var pct=total?Math.round(esc/total*100):0;
+  document.getElementById('progFillM').style.width=pct+'%';
+  document.getElementById('progTxtM').textContent=esc+' / '+total+' — '+pct+'%';
+}
+
+function checkComplete() {
+  if (completeDone) return;
+  var keys=Object.keys(sist);
+  var total=keys.filter(function(k){ return(sist[k].existencia||0)>0; }).length;
+  if (!total) return;
+  var done=keys.filter(function(k){ return(fis[k]||0)>0; }).length;
+  if (done>=total) {
+    completeDone=true; cronStop(); soundComplete();
+    setTimeout(function(){ setFbM('f-done','🎉 ¡Inventario completado!'); }, 200);
+  }
+}
+
+// ════════════════════════════════
+// TABLA EN VIVO
+// ════════════════════════════════
+function getEst(k) {
+  var s=sist[k]?sist[k].existencia||0:0, f=fis[k]||0;
+  if(f===0&&s>0) return 'PENDIENTE';
+  if(f===0&&s===0) return 'OK';
+  var d=f-s; if(d===0) return 'OK'; if(d<0) return 'FALTANTE'; return 'SOBRANTE';
+}
+
+function renderInv() {
+  var q=(document.getElementById('fInvM').value||'').toLowerCase();
+  var keys=Object.keys(sist);
+  var ord={PENDIENTE:0,FALTANTE:1,SOBRANTE:2,OK:3};
+  var bc={OK:'b-ok',FALTANTE:'b-fa',SOBRANTE:'b-so',PENDIENTE:'b-pe'};
+  var filtered=keys.filter(function(k){
+    if(!q)return true;
+    var si=sist[k];
+    return[si.mod,si.color,si.talla].some(function(x){ return String(x).toLowerCase().includes(q); });
+  });
+  filtered.sort(function(a,b){ var oa=ord[getEst(a)]||4,ob=ord[getEst(b)]||4; return oa!==ob?oa-ob:sist[a].mod.localeCompare(sist[b].mod); });
+  var body=document.getElementById('invBodyM');
+  if(!keys.length){ body.innerHTML='<tr><td colspan="8" class="empty">Inicia el inventario</td></tr>'; return; }
+  if(!filtered.length){ body.innerHTML='<tr><td colspan="8" class="empty">Sin resultados</td></tr>'; return; }
+  body.innerHTML=filtered.map(function(k){
+    var si=sist[k],s=si.existencia||0,f=fis[k]||0,d=f-s,pend=Math.max(0,s-f),est=getEst(k);
+    return'<tr onclick="openModal(\''+k+'\')" style="cursor:pointer">'
+      +'<td><span class="bk '+(bc[est]||'b-pe')+'">'+est.substring(0,4)+'</span></td>'
+      +'<td>'+si.mod+'</td><td>'+si.color+'</td><td>'+si.talla+'</td>'
+      +'<td style="text-align:center">'+s+'</td>'
+      +'<td style="text-align:center;color:'+(f>0?'#4ade80':'#64748b')+'">'+f+'</td>'
+      +'<td style="text-align:center;color:'+(pend>0?'#fbbf24':'#4ade80')+'">'+pend+'</td>'
+      +'<td class="'+(d<0?'dn':d>0?'dp':'')+'" style="text-align:center">'+(d>0?'+':'')+d+'</td>'
+      +'</tr>';
+  }).join('');
+}
+
+// ════════════════════════════════
+// MODAL
+// ════════════════════════════════
+function openModal(k) {
+  if(!going)return;
+  modalKey=k;
+  var si=sist[k]||{};
+  document.getElementById('modalDesc').innerHTML='<b>'+si.mod+' '+si.color+' T'+si.talla+'</b><br>Sistema: '+si.existencia+' · Físico: '+(fis[k]||0);
+  var inp=document.getElementById('modalInput');
+  inp.value=fis[k]||0;
+  document.getElementById('modal').classList.add('show');
+  setTimeout(function(){ inp.focus(); inp.select(); },80);
+}
+function closeModal() { document.getElementById('modal').classList.remove('show'); modalKey=null; }
+function confirmModal() {
+  if(!modalKey)return;
+  var val=parseInt(document.getElementById('modalInput').value,10);
+  if(isNaN(val)||val<0){ alert('Número inválido'); return; }
+  fis[modalKey]=val;
+  closeModal(); updStats(); renderInv(); checkComplete();
+}
+document.getElementById('modalInput').addEventListener('keydown',function(e){ if(e.key==='Enter')confirmModal(); if(e.key==='Escape')closeModal(); });
+document.getElementById('modal').addEventListener('click',function(e){ if(e.target===this)closeModal(); });
+
+// ════════════════════════════════
+// REPORTE
+// ════════════════════════════════
+function genReporte() {
+  repRows=[];
+  var ord={FALTANTE:0,SOBRANTE:1,DESCONOCIDO:2,OK:3};
+  Object.keys(sist).forEach(function(k){ var si=sist[k],s=si.existencia||0,f=fis[k]||0,d=f-s,st=d===0?'OK':d<0?'FALTANTE':'SOBRANTE'; var pi=porto['k:'+k]||{}; repRows.push({st:st,key:k,mod:si.mod||pi.mod||'—',col:si.color||pi.color||'—',tal:si.talla||pi.talla||'—',tmp:si.temporada||'—',cat:si.catalogo||'—',s:s,f:f,d:d}); });
+  Object.keys(fis).forEach(function(k){ if(sist[k])return; var pi=porto['k:'+k]||{},f=fis[k]; repRows.push({st:'SOBRANTE',key:k,mod:pi.mod||'—',col:pi.color||'—',tal:pi.talla||'—',tmp:'—',cat:'—',s:0,f:f,d:f}); });
+  Object.keys(desc).forEach(function(sku){ repRows.push({st:'DESCONOCIDO',key:sku,mod:'—',col:'—',tal:'—',tmp:'—',cat:'—',s:0,f:desc[sku],d:desc[sku]}); });
+  repRows.sort(function(a,b){ return(ord[a.st]||4)-(ord[b.st]||4)||a.mod.localeCompare(b.mod); });
+  goTab(2);
+}
+function renderRep() {
+  var sf=document.getElementById('fStM').value, qf=(document.getElementById('fQM').value||'').toLowerCase();
+  var bc={OK:'b-ok',FALTANTE:'b-fa',SOBRANTE:'b-so',DESCONOCIDO:'b-uk'};
+  var filtered=repRows.filter(function(r){ if(sf&&r.st!==sf)return false; if(qf&&![r.mod,r.col,r.tal].some(function(x){ return x.toLowerCase().includes(qf); }))return false; return true; });
+  var body=document.getElementById('rBodyM');
+  if(!repRows.length){ body.innerHTML='<tr><td colspan="9" class="empty">Genera el reporte desde Escáner</td></tr>'; document.getElementById('rCntM').textContent=''; return; }
+  if(!filtered.length){ body.innerHTML='<tr><td colspan="9" class="empty">Sin resultados</td></tr>'; document.getElementById('rCntM').textContent='0 filas'; return; }
+  body.innerHTML=filtered.map(function(r){ return'<tr><td><span class="bk '+(bc[r.st]||'b-uk')+'">'+r.st.substring(0,4)+'</span></td><td>'+r.mod+'</td><td>'+r.col+'</td><td>'+r.tal+'</td><td>'+r.tmp+'</td><td>'+r.cat+'</td><td style="text-align:center">'+r.s+'</td><td style="text-align:center">'+r.f+'</td><td class="'+(r.d<0?'dn':r.d>0?'dp':'')+'" style="text-align:center">'+(r.d>0?'+':'')+r.d+'</td></tr>'; }).join('');
+  document.getElementById('rCntM').textContent=filtered.length+' de '+repRows.length+' filas';
+}
+
+// ════════════════════════════════
+// EXPORT EXCEL
+// ════════════════════════════════
+function exportXlsx() {
+  if(!repRows.length){ genReporte(); return; }
+  var suc=document.getElementById('selSuc').value||'Sucursal';
+  var fecha=new Date().toLocaleDateString('es-MX');
+  var cron=document.getElementById('cronM').textContent;
+  var wb=XLSX.utils.book_new();
+  var WC=[12,24,14,14,8,12,8,10,10].map(function(w){return{wch:w};});
+  var H=['Estado','Clave','Modelo','Color','Talla','Temp.','Cat.','Sistema','Físico','Diferencia'];
+  var toA=function(r){return[r.st,r.key,r.mod,r.col,r.tal,r.tmp,r.cat,r.s,r.f,r.d];};
+  var resWs=XLSX.utils.aoa_to_sheet([['REPORTE INVENTARIO MÓVIL'],['Sucursal:',suc],['Fecha:',fecha],['Duración:',cron],[''],['SKUs sistema:',Object.keys(sist).length],['Escaneados:',Object.keys(fis).length],['Faltantes:',repRows.filter(function(r){return r.st==='FALTANTE';}).length],['Sobrantes:',repRows.filter(function(r){return r.st==='SOBRANTE';}).length],['OK:',repRows.filter(function(r){return r.st==='OK';}).length],['Desconocidos:',repRows.filter(function(r){return r.st==='DESCONOCIDO';}).length]]);
+  XLSX.utils.book_append_sheet(wb,resWs,'Resumen');
+  function addSheet(name,arr){ if(!arr.length)return; var ws=XLSX.utils.aoa_to_sheet([H].concat(arr.map(toA))); ws['!cols']=WC; XLSX.utils.book_append_sheet(wb,ws,name); }
+  addSheet('Detalle',repRows);
+  addSheet('Faltantes',repRows.filter(function(r){return r.st==='FALTANTE';}));
+  addSheet('Sobrantes',repRows.filter(function(r){return r.st==='SOBRANTE';}));
+  addSheet('OK',repRows.filter(function(r){return r.st==='OK';}));
+  addSheet('Desconocidos',repRows.filter(function(r){return r.st==='DESCONOCIDO';}));
+  XLSX.writeFile(wb,'Inventario_Movil_'+suc.replace(/\s/g,'_')+'_'+fecha.replace(/\//g,'-')+'.xlsx');
+}
+
+// ════════════════════════════════
+// REINICIAR
+// ════════════════════════════════
+function reiniciar() {
+  if(!confirm('¿Reiniciar conteo?'))return;
+  stopCam();
+  fis={}; desc={}; repRows=[]; completeDone=false;
+  cronStop(); document.getElementById('cronM').textContent='00:00:00';
+  updStats(); renderInv();
+  setFbM('f-idle','Listo para escanear');
+}
+</script>
+</body>
+</html>
